@@ -14,13 +14,15 @@ class ModuleSeeder extends Seeder
      */
     public function run()
     {
-        for ($day = 1; $day <= 30; $day++) {
+        $curriculum = require __DIR__ . '/data/curriculum.php';
+
+        foreach ($curriculum as $dayNumber => $lesson) {
             Module::updateOrCreate(
-                ['day_number' => $day],
+                ['day_number' => $dayNumber],
                 [
-                    'title' => "Day {$day}: Forex Foundations",
-                    'content' => "Welcome to Day {$day} of the Forex Academy. Learn essential trading concepts step by step.",
-                    'is_free' => $day <= 3,
+                    'title' => $lesson['title'],
+                    'content' => $lesson['content'],
+                    'is_free' => $lesson['is_free'],
                 ]
             );
         }

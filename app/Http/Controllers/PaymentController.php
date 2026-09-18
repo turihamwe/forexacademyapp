@@ -19,16 +19,30 @@ class PaymentController extends Controller
     }
 
     /**
-     * Initiate a mobile money payment via Yo! Payments.
+     * Initiate a pull-method mobile money deposit via Yo! Payments (section 6.1).
      */
     public function initiate(Request $request)
     {
+        if (! $this->yoPaymentService->isConfigured()) {
+            return response()->json([
+                'message' => 'Payment gateway is not configured. Please contact support.',
+            ], 503);
+        }
+
         $validated = $request->validate([
             'type' => ['required', 'in:full_100,daily_4'],
             'phone_number' => ['nullable', 'string', 'max:20'],
         ]);
 
         $user = Auth::user();
+        $msisdn = $validated['phone_number'] ?? $user->phone_number;
+
+        if (! $msisdn) {
+            return response()->json([
+                'message' => 'A phone number is required for mobile money payment.',
+            ], 422);
+        }
+
         $type = $validated['type'];
         $amount = $type === Transaction::TYPE_FULL
             ? Setting::coursePriceFull()
@@ -44,7 +58,6 @@ class PaymentController extends Controller
             'status' => Transaction::STATUS_PENDING,
         ]);
 
-        $msisdn = $validated['phone_number'] ?? $user->phone_number;
         $narrative = $type === Transaction::TYPE_FULL
             ? 'Forex Academy Full Course Payment'
             : 'Forex Academy Daily Module Payment';
@@ -54,17 +67,33 @@ class PaymentController extends Controller
             $amount,
             $narrative,
             $externalReference,
-            route('webhooks.yo-payments')
+            route('webhooks.yo-payments'),
+            route('webhooks.yo-payments.failure')
         );
 
         if (! empty($response['TransactionReference'])) {
             $transaction->update([
+                'yo_transaction_ref' => $response['TransactionReference'],
                 'payment_gateway_ref' => $response['TransactionReference'],
             ]);
         }
 
+        if ($this->yoPaymentService->isFailedGatewayResponse($response)) {
+            $transaction->update(['status' => Transaction::STATUS_FAILED]);
+
+            return response()->json([
+                'message' => $response['ErrorMessage'] ?? $response['StatusMessage'] ?? 'Payment could not be initiated.',
+                'transaction' => $transaction->fresh(),
+                'gateway_response' => $response,
+            ], 422);
+        }
+
+        $message = $this->yoPaymentService->isPendingGatewayResponse($response)
+            ? 'Payment request sent. Approve the prompt on your phone to complete.'
+            : 'Payment initiated successfully.';
+
         return response()->json([
-            'message' => 'Payment initiated. Approve the prompt on your phone.',
+            'message' => $message,
             'transaction' => $transaction->fresh(),
             'gateway_response' => $response,
         ]);

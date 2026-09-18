@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\WebhookController;
@@ -13,6 +14,7 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::get('/pricing', [PaymentController::class, 'pricing']);
 
 Route::post('/webhooks/yo-payments', [WebhookController::class, 'yoPayments']);
+Route::post('/webhooks/yo-payments/failure', [WebhookController::class, 'yoPaymentsFailure']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
@@ -20,6 +22,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/dashboard/modules', [DashboardController::class, 'index']);
+    Route::get('/modules/{id}', [ModuleController::class, 'show']);
+    Route::post('/modules/{id}/complete', [ModuleController::class, 'complete']);
     Route::post('/payments/initiate', [PaymentController::class, 'initiate']);
 });
 

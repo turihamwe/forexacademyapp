@@ -31,14 +31,20 @@ return [
     ],
 
     'yo_payments' => [
-        'username' => env('YO_PAYMENTS_USERNAME'),
-        'password' => env('YO_PAYMENTS_PASSWORD'),
-        'sandbox' => env('YO_PAYMENTS_SANDBOX', true),
-        'production_url' => env('YO_PAYMENTS_PRODUCTION_URL', 'https://paymentsapi1.yo.co.ug/ybs/task.php'),
+        'username' => env('YO_PAYMENTS_USERNAME', env('API_USERNAME_YOPAYMENTS')),
+        'password' => env('YO_PAYMENTS_PASSWORD', env('API_PASSWORD_YOPAYMENTS')),
+        'sandbox' => env('YO_PAYMENTS_SANDBOX', false),
+        // API v3.44 section 3.7 — production endpoints
+        'production_url' => env('YO_PAYMENTS_PRODUCTION_URL', env('API_URL_YOPAYMENTS', 'https://paymentsapi1.yo.co.ug/ybs/task.php')),
+        'production_url_fallback' => env('YO_PAYMENTS_PRODUCTION_URL_FALLBACK', 'https://paymentsapi2.yo.co.ug/ybs/task.php'),
+        // API v3.44 section 24.3 — sandbox endpoint
         'sandbox_url' => env('YO_PAYMENTS_SANDBOX_URL', 'https://sandbox.yo.co.ug/services/yopaymentsdev/task.php'),
         'production_public_key' => env('YO_PAYMENTS_PRODUCTION_PUBLIC_KEY', storage_path('certificates/Yo_Uganda_Public_Certificate.crt')),
         'sandbox_public_key' => env('YO_PAYMENTS_SANDBOX_PUBLIC_KEY', storage_path('certificates/Yo_Uganda_Public_Sandbox_Certificate.crt')),
+        // Also configure a default IPN URL in your Yo! Business account portal (section 6.3.1)
         'skip_signature_verification' => env('YO_PAYMENTS_SKIP_SIGNATURE_VERIFICATION', false),
+        // Respond to IPN with narrative= to trigger payer SMS (section 6.3.2)
+        'ipn_sms_response' => env('YO_PAYMENTS_IPN_SMS_RESPONSE', true),
     ],
 
 ];

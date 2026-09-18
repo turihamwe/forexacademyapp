@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Transaction;
 use App\Services\YoPaymentService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class WebhookController extends Controller
@@ -18,7 +16,8 @@ class WebhookController extends Controller
     }
 
     /**
-     * Yo! Payments Instant Payment Notification (IPN) listener.
+     * Yo! Payments Instant Payment Notification (IPN) — API v3.44 section 6.3.
+     * Must always return HTTP 200 when received to stop retries.
      */
     public function yoPayments(Request $request)
     {
@@ -27,45 +26,39 @@ class WebhookController extends Controller
         Log::info('Yo! Payments IPN received', $payload);
 
         if (! $this->yoPaymentService->verifyIpnSignature($payload)) {
-            Log::warning('Yo! Payments IPN signature verification failed', $payload);
-
             return response('Invalid signature', 403);
         }
 
-        $externalRef = $payload['external_ref'] ?? null;
+        $result = $this->yoPaymentService->processSuccessfulIpn($payload);
 
-        if (! $externalRef) {
-            return response('Missing external reference', 400);
+        if (! $result['ok']) {
+            return response($result['message'], $result['http_code']);
         }
 
-        $transaction = Transaction::where('external_reference', $externalRef)->first();
-
-        if (! $transaction) {
-            Log::warning('Yo! Payments IPN: transaction not found', ['external_ref' => $externalRef]);
-
-            return response('Transaction not found', 404);
+        // Optional SMS to payer — API section 6.3.2
+        if (! empty($result['sms_narrative']) && config('services.yo_payments.ipn_sms_response', true)) {
+            return response('narrative=' . rawurlencode($result['sms_narrative']), 200)
+                ->header('Content-Type', 'application/x-www-form-urlencoded');
         }
-
-        if ($transaction->status === Transaction::STATUS_COMPLETED) {
-            return response('OK', 200);
-        }
-
-        DB::transaction(function () use ($transaction, $payload) {
-            $transaction->update([
-                'status' => Transaction::STATUS_COMPLETED,
-                'payment_gateway_ref' => $payload['network_ref'] ?? $transaction->payment_gateway_ref,
-            ]);
-
-            $transaction->user->update([
-                'subscription_status' => $transaction->subscriptionStatusForType(),
-            ]);
-        });
-
-        Log::info('User subscription upgraded via IPN', [
-            'user_id' => $transaction->user_id,
-            'subscription' => $transaction->subscriptionStatusForType(),
-        ]);
 
         return response('OK', 200);
+    }
+
+    /**
+     * Yo! Payments Transaction Failure Notification — API v3.44 section 6.4.
+     */
+    public function yoPaymentsFailure(Request $request)
+    {
+        $payload = $request->all();
+
+        Log::info('Yo! Payments failure notification received', $payload);
+
+        if (! $this->yoPaymentService->verifyFailureNotificationSignature($payload)) {
+            return response('Invalid verification signature', 403);
+        }
+
+        $result = $this->yoPaymentService->processFailureNotification($payload);
+
+        return response($result['message'], $result['http_code']);
     }
 }

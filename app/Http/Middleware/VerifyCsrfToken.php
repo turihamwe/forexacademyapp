@@ -13,6 +13,8 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         'webhooks/yo-payments',
+        'webhooks/yo-payments/failure',
         'api/webhooks/yo-payments',
+        'api/webhooks/yo-payments/failure',
     ];
 }
